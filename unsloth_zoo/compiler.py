@@ -21,11 +21,13 @@ __all__ = [
     "create_new_function",
 ]
 
+import pathlib
 from typing import Any, List, Optional, Tuple, Union, Dict, Set, Callable
 import inspect
 import re
 import importlib
 import importlib.util
+import filelock
 import numpy as np
 import os
 import torch
@@ -554,13 +556,36 @@ def create_new_function(
         overwrite = False
 
     # Check location
-    def write_file(function_location, write_new_source):
-        with open(function_location, "wb", buffering = 0) as file:
-            file.write(write_new_source.encode("utf-8"))
-            file.flush()
-            os.fsync(file.fileno())
+    def atomic_write(file_location, data: bytes):
+        directory = os.path.dirname(file_location)
+        fd, temp_file = tempfile.mkstemp(dir = directory)
+        try:
+            with os.fdopen(fd, "wb", buffering = 0) as file:
+                file.write(data)
+                file.flush()
+                os.fsync(file.fileno())
+            os.replace(temp_file, file_location)
+        except Exception as e:
+            try: os.remove(temp_file)
+            except: pass
+            # raise or pass?
         return None
-    pass
+
+    def lock_path_for(target: str) -> str:
+        locks_dir = pathlib.Path(target).parent / ".locks"
+        locks_dir.mkdir(parents=True, exist_ok=True)
+        return str(locks_dir / f".lock.{pathlib.Path(target).name}")
+
+    def write_file(function_location, write_new_source):
+        lock = filelock.FileLock(lock_path_for(function_location), timeout = os.environ.get("UNSLOTH_WRITE_TIMEOUT", "10"))
+        try:
+            with lock:
+                atomic_write(function_location, write_new_source.encode("utf-8"))
+                return None
+        except Exception as e:
+            if os.environ.get("UNSLOTH_LOGGING_ENABLED", "0") == "1":
+                logger.error(f"Failed to write file {function_location}: {e}")
+            return None
 
     if overwrite or not os.path.isfile(function_location):
         try:
