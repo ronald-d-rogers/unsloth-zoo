@@ -577,7 +577,7 @@ def create_new_function(
         return str(locks_dir / f".lock.{pathlib.Path(target).name}")
 
     def write_file(function_location, write_new_source):
-        lock = filelock.FileLock(lock_path_for(function_location), timeout = os.environ.get("UNSLOTH_WRITE_TIMEOUT", "10"))
+        lock = filelock.FileLock(lock_path_for(function_location), timeout = int(os.environ.get("UNSLOTH_WRITE_TIMEOUT", "10")))
         try:
             with lock:
                 atomic_write(function_location, write_new_source.encode("utf-8"))
