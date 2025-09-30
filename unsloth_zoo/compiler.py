@@ -26,6 +26,7 @@ import inspect
 import re
 import importlib
 import importlib.util
+import filelock
 import numpy as np
 import os
 import torch
@@ -458,7 +459,7 @@ if hasattr(logger, "addFilter"):
     logger.addFilter(HideLoggingMessage("`use_cache=True`"))
 """
 
-def create_new_function(
+def _create_new_function(
     name,
     new_source,
     model_location,
@@ -634,6 +635,31 @@ def create_new_function(
 
     return new_module
 pass
+
+
+def create_new_function(
+    name,
+    new_source,
+    model_location,
+    functions,
+    prepend = "",
+    append = "",
+    overwrite = True,
+    add_torch_compile = False,
+):
+    compile_folder, UNSLOTH_COMPILE_USE_TEMP = get_compile_folder(use_tempfile = False)
+    lock = filelock.FileLock(os.path.join(compile_folder, f"{name}.lock"), timeout = int(os.environ.get("UNSLOTH_WRITE_TIMEOUT", "10")))
+    with lock:
+        return _create_new_function(
+            name,
+            new_source,
+            model_location,
+            functions,
+            prepend = prepend,
+            append = append,
+            overwrite = overwrite,
+            add_torch_compile = add_torch_compile,
+        )
 
 
 def create_standalone_class(
