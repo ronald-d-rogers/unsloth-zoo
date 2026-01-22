@@ -150,6 +150,7 @@ def distributed_function(n = 1, function = None, *args, **kwargs):
 
     # If the process group is initialized, we can synchronize / share the result
     if torch_distributed_is_initialized():
+        dist = torch.distributed
         # Broadcast result to all ranks
         dist.broadcast_object_list(obj_list, src = 0)
         # Barrier to make sure everyone waits until main is done
